@@ -1,0 +1,159 @@
+import sys
+import webbrowser
+import numpy as np
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QComboBox, QFormLayout, QFrame, QHBoxLayout, QMessageBox
+)
+from PyQt5.QtGui import QFont,QIcon
+from PyQt5.QtCore import Qt
+
+# L型热电偶的电压表
+TYPE_L_thermocouple = [
+    -2.51, -2.03, -1.53, -1.02, -0.51, 0.00, 0.52, 1.05, 1.58, 2.11,
+    2.65, 3.19, 3.73, 4.27, 4.82, 5.37, 5.92, 6.47, 7.03, 7.59,
+    8.15, 8.71, 9.27, 9.83, 10.39, 10.95, 11.51, 12.07, 12.63, 13.19,
+    13.75, 14.31, 14.88, 15.44, 16.00, 16.56, 17.12, 17.68, 18.24, 18.80,
+    19.36, 19.92, 20.48, 21.04, 21.60, 22.16, 22.72, 23.29, 23.86, 24.43,
+    25.00, 25.57, 26.14, 26.71, 27.28, 27.85, 28.43, 29.01, 29.59, 30.17,
+    30.75, 31.33, 31.91, 32.49, 33.08, 33.67, 34.26, 34.85, 35.44, 36.04,
+    36.64, 37.25, 37.85, 38.47, 39.09, 39.72, 40.35, 40.98, 41.62, 42.27,
+    42.82, 43.57, 44.23, 44.89, 45.55, 46.22, 46.89, 47.57, 48.25, 48.94,
+    49.63, 50.32, 51.02, 51.72, 52.43, 53.14
+]
+
+# U型热电偶的电压表
+TYPE_U_thermocouple = [
+    -1.85, -1.50, -1.14, -0.77, -0.39, 0.00, 0.40, 0.80, 1.21, 1.63,
+    2.05, 2.48, 2.91, 3.35, 3.8, 4.25, 4.71, 5.18, 5.65, 6.13,
+    6.62, 7.12, 7.63, 8.15, 8.67, 9.20, 9.74, 10.29, 10.85, 11.41,
+    11.98, 12.55, 13.13, 13.71, 14.30, 14.90, 15.50, 16.10, 16.70, 17.31,
+    17.92, 18.53, 19.14, 19.76, 20.38, 21.00, 21.62, 22.25, 22.88, 23.51,
+    24.15, 24.79, 25.44, 26.09, 26.75, 27.41, 28.08, 28.75, 29.43, 30.11,
+    30.80, 31.49, 32.19, 32.89, 33.60, 34.31
+]
+
+# 对应的温度范围
+temperatures_L = np.arange(-50, 910, 10)
+temperatures_U = np.arange(-50, 610, 10)
+
+# 输入温度，输出电压
+def temperature_to_voltage(temp, thermocouple_type):
+    if thermocouple_type == 'L':
+        if temp < -50 or temp > 900:
+            return "温度超出范围"
+        voltage = np.interp(temp, temperatures_L, TYPE_L_thermocouple)
+        return f"{voltage:.3f} mV"
+    elif thermocouple_type == 'U':
+        if temp < -50 or temp > 600:
+            return "温度超出范围"
+        voltage = np.interp(temp, temperatures_U, TYPE_U_thermocouple)
+        return f"{voltage:.3f} mV"
+
+# 输入电压，输出温度
+def voltage_to_temperature(voltage, thermocouple_type):
+    if thermocouple_type == 'L':
+        if voltage < min(TYPE_L_thermocouple) or voltage > max(TYPE_L_thermocouple):
+            return "电压超出范围"
+        temp = np.interp(voltage, TYPE_L_thermocouple, temperatures_L)
+        return f"{temp:.2f} ℃"
+    elif thermocouple_type == 'U':
+        if voltage < min(TYPE_U_thermocouple) or voltage > max(TYPE_U_thermocouple):
+            return "电压超出范围"
+        temp = np.interp(voltage, TYPE_U_thermocouple, temperatures_U)
+        return f"{temp:.2f} ℃"
+
+class ThermocoupleConverter(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('L型U型热电偶温度转换器 刘小白')
+        self.setGeometry(100, 100, 400, 200)
+        self.setFixedSize(500, 200)  # 设置窗口大小固定
+        self.setStyleSheet("background-color: #f5f5f5;")
+        self.setWindowIcon(QIcon('icon.ico'))
+
+        # 热电偶类型选择
+        self.thermocouple_label = QLabel('选择热电偶类型:')
+        self.thermocouple_label.setFont(QFont("Arial", 12))
+        self.thermocouple_combo = QComboBox()
+        self.thermocouple_combo.addItem('L 型')
+        self.thermocouple_combo.addItem('U 型')
+
+        # 输入温度或电压
+        self.input_label = QLabel('输入温度 (℃) 或 电压 (mV):')
+        self.input_label.setFont(QFont("Arial", 12))
+        self.input_edit = QLineEdit()
+        self.input_edit.setFont(QFont("Arial", 12))
+        self.input_edit.setPlaceholderText("输入数值...")
+
+        # 选择计算类型（温度 -> 电压 或 电压 -> 温度）
+        self.convert_type_label = QLabel('选择转换类型:')
+        self.convert_type_label.setFont(QFont("Arial", 12))
+        self.convert_type_combo = QComboBox()
+        self.convert_type_combo.addItem('温度 -> 电压')
+        self.convert_type_combo.addItem('电压 -> 温度')
+
+        # 计算按钮
+        self.convert_button = QPushButton('转换')
+        self.convert_button.setFont(QFont("Arial", 12, QFont.Bold))
+        self.convert_button.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.convert_button.clicked.connect(self.convert)
+
+        # 结果显示
+        self.result_label = QLabel('结果:')
+        self.result_label.setFont(QFont("Arial", 14, QFont.Bold))
+        self.result_label.setStyleSheet("color: #333; margin-top: 10px;")
+
+        # 超链接
+        self.link_label = QLabel('<a href="https://www.hhax.org/owe/lovedonate">本软件完全免费,如果您也是一个有爱心的人,可以点击此处献出您的爱心！</a>')
+        self.link_label.setFont(QFont("Arial", 10))
+        self.link_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.link_label.setOpenExternalLinks(True)
+        self.link_label.setStyleSheet("color: #007BFF; text-decoration: underline;")
+
+        # 布局
+        form_layout = QFormLayout()
+        form_layout.addRow(self.thermocouple_label, self.thermocouple_combo)
+        form_layout.addRow(self.input_label, self.input_edit)
+        form_layout.addRow(self.convert_type_label, self.convert_type_combo)
+
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.convert_button, alignment=Qt.AlignCenter)
+        main_layout.addWidget(QFrame(frameShape=QFrame.HLine, frameShadow=QFrame.Sunken))
+        main_layout.addWidget(self.result_label, alignment=Qt.AlignCenter)
+
+        # 布局调整：添加链接在左下角
+        bottom_layout = QHBoxLayout()
+        bottom_layout.addWidget(self.link_label)
+        bottom_layout.addStretch()
+
+        main_layout.addLayout(bottom_layout)
+
+        self.setLayout(main_layout)
+
+    def convert(self):
+        thermocouple_type = self.thermocouple_combo.currentText()[0]  # 'L' 或 'U'
+        convert_type = self.convert_type_combo.currentText()
+        input_value = self.input_edit.text()
+
+        try:
+            input_value = float(input_value)
+        except ValueError:
+            self.result_label.setText('请输入有效的数字')
+            return
+
+        if convert_type == '温度 -> 电压':
+            result = temperature_to_voltage(input_value, thermocouple_type)
+        else:
+            result = voltage_to_temperature(input_value, thermocouple_type)
+
+        self.result_label.setText(f'结果: {result}')
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = ThermocoupleConverter()
+    window.show()
+    sys.exit(app.exec_())
